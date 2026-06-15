@@ -10,11 +10,75 @@ import NewsCard from "@/components/NewsCard";
 import Footer from "@/components/Footer";
 import Breadcrumb from "@/components/Breadcrumb";
 import { SkeletonCard } from "@/components/SkeletonLoader";
-import { newsArticles, categoryMeta, categoryColors, type Category } from "@/lib/mockData";
+import { newsArticles, categoryMeta, categoryColors, type Category, type NewsArticle } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const SORT_OPTIONS = ["Latest", "Most Read", "Most Shared"];
+
+const getArticleSubFilters = (article: NewsArticle): string[] => {
+  const text = `${article.title} ${article.summary}`.toLowerCase();
+  const subFilters = ["All"];
+  
+  // Politics
+  if (article.category === "Politics") {
+    if (text.includes("parliament") || text.includes("budget") || text.includes("mps") || text.includes("debate")) subFilters.push("Parliament");
+    if (text.includes("cabinet") || text.includes("president") || text.includes("corruption") || text.includes("policy") || text.includes("bill") || text.includes("reshuffle") || text.includes("act")) subFilters.push("Governance");
+    if (text.includes("international") || text.includes("foreign") || text.includes("global") || text.includes("un ")) subFilters.push("International");
+    if (text.includes("election") || text.includes("vote") || text.includes("ballot") || text.includes("voters")) subFilters.push("Elections");
+  }
+  
+  // Business
+  if (article.category === "Business") {
+    if (text.includes("economy") || text.includes("gdp") || text.includes("imf") || text.includes("growth") || text.includes("central bank") || text.includes("interest rates") || text.includes("economic")) subFilters.push("Economy");
+    if (text.includes("stock") || text.includes("cse") || text.includes("shares") || text.includes("inflow") || text.includes("market") || text.includes("equities")) subFilters.push("Markets");
+    if (text.includes("investment") || text.includes("campus") || text.includes("sez") || text.includes("companies") || text.includes("corp") || text.includes("deal") || text.includes("port city")) subFilters.push("Companies");
+    if (text.includes("startup") || text.includes("fintech") || text.includes("incubator") || text.includes("jobs")) subFilters.push("Startups");
+  }
+  
+  // Sports
+  if (article.category === "Sports") {
+    if (text.includes("cricket") || text.includes("odi") || text.includes("t20") || text.includes("runs") || text.includes("mendis")) subFilters.push("Cricket");
+    if (text.includes("football") || text.includes("soccer") || text.includes("afc") || text.includes("vietnam")) subFilters.push("Football");
+    if (text.includes("athletic") || text.includes("race") || text.includes("run") || text.includes("track")) subFilters.push("Athletics");
+    // fallback
+    if (subFilters.length === 1) subFilters.push("Other Sports");
+  }
+  
+  // Tech
+  if (article.category === "Tech") {
+    if (text.includes("ai") || text.includes("deepmind") || text.includes("gpt") || text.includes("llm") || text.includes("model") || text.includes("reasoning") || text.includes("open-source")) subFilters.push("AI & ML");
+    if (text.includes("siri") || text.includes("apple") || text.includes("wwdc") || text.includes("gadget") || text.includes("device") || text.includes("phone")) subFilters.push("Gadgets");
+    if (text.includes("startup") || text.includes("hub") || text.includes("ecosystem") || text.includes("jobs") || text.includes("colombo")) subFilters.push("Startups");
+    if (text.includes("security") || text.includes("cyber") || text.includes("encryption") || text.includes("private") || text.includes("privacy")) subFilters.push("Cybersecurity");
+  }
+  
+  // Climate
+  if (article.category === "Climate") {
+    if (text.includes("crisis") || text.includes("drought") || text.includes("melt") || text.includes("himalayas") || text.includes("ice") || text.includes("temperatures") || text.includes("global warming")) subFilters.push("Climate Crisis");
+    if (text.includes("renewable") || text.includes("solar") || text.includes("wind") || text.includes("energy") || text.includes("power")) subFilters.push("Renewables");
+    if (text.includes("policy") || text.includes("bill") || text.includes("net-zero") || text.includes("mandate")) subFilters.push("Policy");
+    if (text.includes("drought") || text.includes("flood") || text.includes("monsoon") || text.includes("disaster") || text.includes("early-warning") || text.includes("rain")) subFilters.push("Disasters");
+  }
+  
+  // Entertainment
+  if (article.category === "Entertainment") {
+    if (text.includes("movie") || text.includes("netflix") || text.includes("film") || text.includes("series") || text.includes("star") || text.includes("bollywood")) subFilters.push("Movies");
+    if (text.includes("music") || text.includes("song") || text.includes("album") || text.includes("singer")) subFilters.push("Music");
+    if (text.includes("television") || text.includes("tv") || text.includes("show")) subFilters.push("Television");
+    if (text.includes("celebrity") || text.includes("star") || text.includes("gossip")) subFilters.push("Celebrity");
+  }
+  
+  // Default fallback if no match
+  if (subFilters.length === 1 && categoryMeta[article.category.toLowerCase()]) {
+    const metaFilters = categoryMeta[article.category.toLowerCase()].subFilters;
+    if (metaFilters.length > 1) {
+      subFilters.push(metaFilters[1]); // push the first non-All subfilter as a fallback
+    }
+  }
+  
+  return subFilters;
+};
 
 interface CategoryPageClientProps {
   slug: string;
@@ -47,7 +111,12 @@ export default function CategoryPageClient({ slug }: CategoryPageClientProps) {
     );
   }
 
-  const filtered = articles.filter((a) => a.category === meta.label);
+  const filtered = articles.filter((a) => {
+    if (a.category !== meta.label) return false;
+    if (activeSubFilter === "All") return true;
+    const subs = getArticleSubFilters(a);
+    return subs.includes(activeSubFilter);
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     if (activeSort === "Most Read") return (b.views ?? 0) - (a.views ?? 0);

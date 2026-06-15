@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Layers, Filter } from "lucide-react";
+import { RefreshCw, Layers, Filter, Sparkles } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import NewsTicker from "@/components/NewsTicker";
 import HeroCard from "@/components/HeroCard";
 import NewsCard from "@/components/NewsCard";
 import TrendingSidebar from "@/components/TrendingSidebar";
 import Footer from "@/components/Footer";
+import LiveFeedBanner from "@/components/LiveFeedBanner";
 import {
   SkeletonCard,
   SkeletonHero,
@@ -23,6 +24,8 @@ import {
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import NewsletterModal from "@/components/NewsletterModal";
 
 // Extra articles for "load more"
 const extraArticles: NewsArticle[] = [
@@ -68,9 +71,11 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category>("All");
   const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [hero, setHero] = useState(heroArticle);
+  const [hero] = useState(heroArticle);
   const [showLoadMore, setShowLoadMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
+  const { isBookmarked, toggleBookmark } = useBookmarks();
 
   // Simulate initial data load
   useEffect(() => {
@@ -87,24 +92,13 @@ export default function HomePage() {
       ? articles
       : articles.filter((a) => a.category === activeCategory);
 
-  // Bookmark toggle
+  // Bookmark toggle — now persisted via useBookmarks hook
   const handleBookmark = (id: number) => {
-    if (id === hero.id) {
-      setHero((prev) => {
-        const next = { ...prev, isBookmarked: !prev.isBookmarked };
-        toast.success(next.isBookmarked ? "Article saved!" : "Bookmark removed");
-        return next;
-      });
-    } else {
-      setArticles((prev) =>
-        prev.map((a) => {
-          if (a.id !== id) return a;
-          const next = { ...a, isBookmarked: !a.isBookmarked };
-          toast.success(next.isBookmarked ? "Article saved!" : "Bookmark removed");
-          return next;
-        })
-      );
-    }
+    const article = id === hero.id ? hero : articles.find((a) => a.id === id);
+    if (!article) return;
+    toggleBookmark(article);
+    const nowBookmarked = !isBookmarked(id);
+    toast.success(nowBookmarked ? "Article saved!" : "Bookmark removed");
   };
 
   // Load more
@@ -128,6 +122,16 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <NewsletterModal isOpen={newsletterOpen} onClose={() => setNewsletterOpen(false)} />
+      <LiveFeedBanner
+        newArticleCount={5}
+        delaySeconds={30}
+        onRefresh={() => {
+          setIsLoading(true);
+          setTimeout(() => setIsLoading(false), 800);
+          toast.success("Feed refreshed with new articles!");
+        }}
+      />
       <Navbar
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
@@ -175,13 +179,38 @@ export default function HomePage() {
         </div>
 
         {/* Hero Section */}
-        <div className="mb-8">
+        <div className="mb-6">
           {isLoading ? <SkeletonHero /> : (
             (activeCategory === "All" || activeCategory === hero.category) && (
-              <HeroCard article={hero} onBookmark={handleBookmark} />
+              <HeroCard article={{ ...hero, isBookmarked: isBookmarked(hero.id) }} onBookmark={handleBookmark} />
             )
           )}
         </div>
+
+        {/* Newsletter CTA strip */}
+        {!isLoading && activeCategory === "All" && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mb-8 flex items-center gap-4 px-5 py-4 rounded-xl bg-gradient-to-r from-red-950/50 via-[#0f172a] to-orange-950/30 border border-red-500/15"
+          >
+            <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+              <Sparkles size={16} className="text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-semibold">Get NewsIQ in your inbox</p>
+              <p className="text-slate-500 text-xs">Personalised daily digest — curated by AI, built for you.</p>
+            </div>
+            <button
+              onClick={() => setNewsletterOpen(true)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-all duration-200"
+              id="home-newsletter-cta"
+            >
+              Subscribe
+            </button>
+          </motion.div>
+        )}
 
         {/* Main content + sidebar */}
         <div className="flex gap-8">
@@ -248,7 +277,7 @@ export default function HomePage() {
                   {filteredArticles.map((article, i) => (
                     <NewsCard
                       key={article.id}
-                      article={article}
+                      article={{ ...article, isBookmarked: isBookmarked(article.id) }}
                       onBookmark={handleBookmark}
                       index={i}
                     />

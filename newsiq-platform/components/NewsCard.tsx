@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Bookmark, Share2, Clock, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,9 +12,30 @@ interface NewsCardProps {
   article: NewsArticle;
   onBookmark: (id: number) => void;
   index: number;
+  searchQuery?: string;
 }
 
-export default function NewsCard({ article, onBookmark, index }: NewsCardProps) {
+function HighlightText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight.trim()) return <span>{text}</span>;
+  const regex = new RegExp(`(${highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-red-500/30 text-red-200 font-bold rounded px-0.5 select-all">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
+export default function NewsCard({ article, onBookmark, index, searchQuery }: NewsCardProps) {
+  const router = useRouter();
   const sentiment = sentimentStyles[article.sentiment];
   const catColor = categoryColors[article.category];
 
@@ -30,6 +52,7 @@ export default function NewsCard({ article, onBookmark, index }: NewsCardProps) 
       className="glass-card-hover flex flex-col overflow-hidden group cursor-pointer"
       role="article"
       aria-label={article.title}
+      onClick={() => router.push(`/article/${article.id}`)}
     >
       {/* Thumbnail */}
       <div className="relative overflow-hidden aspect-[16/9] bg-slate-800">
@@ -64,7 +87,7 @@ export default function NewsCard({ article, onBookmark, index }: NewsCardProps) 
       <div className="flex flex-col flex-1 p-4 gap-3">
         {/* Title */}
         <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2 group-hover:text-red-400 transition-colors duration-200">
-          {article.title}
+          {searchQuery ? <HighlightText text={article.title} highlight={searchQuery} /> : article.title}
         </h3>
 
         {/* AI Summary */}
