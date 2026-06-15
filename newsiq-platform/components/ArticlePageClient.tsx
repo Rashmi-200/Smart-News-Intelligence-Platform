@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -11,21 +11,29 @@ import { useRouter } from "next/navigation";
 import ReadingProgress from "@/components/ReadingProgress";
 import Breadcrumb from "@/components/Breadcrumb";
 import Sidebar from "@/components/Sidebar";
-import NewsCard from "@/components/NewsCard";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import NewsTicker from "@/components/NewsTicker";
-import { articleDetail, newsArticles, categoryColors, sentimentStyles, type Category } from "@/lib/mockData";
+import { newsArticles, categoryColors, sentimentStyles, type Category, getArticleDetail } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useBookmarks, useReadingHistory } from "@/hooks/useBookmarks";
 
 export default function ArticlePageClient({ id }: { id: string }) {
   const router = useRouter();
-  const article = articleDetail; // use the single detail article for all IDs (demo)
-  const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked);
+  const article = getArticleDetail(id);
+  const { isBookmarked: checkBookmarked, toggleBookmark } = useBookmarks();
+  const { addToHistory } = useReadingHistory();
+  const [isBookmarked, setIsBookmarked] = useState(() => checkBookmarked(article.id));
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState(article.comments);
   const [likedComments, setLikedComments] = useState<Set<number>>(new Set());
+
+  // Track this article in reading history
+  useEffect(() => {
+    addToHistory(article);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article.id]);
 
   const catColor = categoryColors[article.category];
   const sentiment = sentimentStyles[article.sentiment];
@@ -62,7 +70,11 @@ export default function ArticlePageClient({ id }: { id: string }) {
   const toggleLike = (commentId: number) => {
     setLikedComments((prev) => {
       const next = new Set(prev);
-      next.has(commentId) ? next.delete(commentId) : next.add(commentId);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
       return next;
     });
   };
@@ -273,7 +285,12 @@ export default function ArticlePageClient({ id }: { id: string }) {
                 <Copy size={13} /> Copy Link
               </button>
               <button
-                onClick={() => { setIsBookmarked(!isBookmarked); toast.success(isBookmarked ? "Bookmark removed" : "Article saved!"); }}
+                onClick={() => {
+                  const next = !isBookmarked;
+                  setIsBookmarked(next);
+                  toggleBookmark(article);
+                  toast.success(next ? "Article saved!" : "Bookmark removed");
+                }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all duration-200",
                   isBookmarked ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white"

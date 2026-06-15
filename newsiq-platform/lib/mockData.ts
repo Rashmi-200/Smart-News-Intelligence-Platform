@@ -31,6 +31,8 @@ export interface TrendingTopic {
   topic: string;
   articleCount: number;
   category: Category;
+  rankChange: number;
+  sparkline: number[];
 }
 
 export interface Comment {
@@ -459,11 +461,24 @@ export const mostReadArticles = [
 
 // ─── Trending Topics ───────────────────────────────────────────────────────────
 export const trendingTopics: TrendingTopic[] = [
-  { id: 1, rank: 1, topic: "IMF Sri Lanka", articleCount: 142, category: "Business" },
-  { id: 2, rank: 2, topic: "Asia Cup 2026", articleCount: 98, category: "Sports" },
-  { id: 3, rank: 3, topic: "AI Regulation", articleCount: 76, category: "Tech" },
-  { id: 4, rank: 4, topic: "Monsoon Floods", articleCount: 54, category: "Climate" },
-  { id: 5, rank: 5, topic: "Parliament Session", articleCount: 41, category: "Politics" },
+  { id: 1, rank: 1, topic: "IMF Sri Lanka", articleCount: 142, category: "Business", rankChange: 0, sparkline: [4,6,5,7,8,9,10,8,9,10] },
+  { id: 2, rank: 2, topic: "Asia Cup 2026", articleCount: 98, category: "Sports", rankChange: 2, sparkline: [3,4,5,6,7,8,9,8,9,9] },
+  { id: 3, rank: 3, topic: "AI Regulation", articleCount: 76, category: "Tech", rankChange: -1, sparkline: [6,7,8,7,6,7,8,7,7,8] },
+  { id: 4, rank: 4, topic: "Monsoon Floods", articleCount: 54, category: "Climate", rankChange: 0, sparkline: [2,3,4,5,4,5,6,5,5,6] },
+  { id: 5, rank: 5, topic: "Parliament Session", articleCount: 41, category: "Politics", rankChange: -2, sparkline: [5,5,4,4,5,4,4,5,4,4] },
+];
+
+export const trendingTopicsExtended: TrendingTopic[] = [
+  { id: 1,  rank: 1,  topic: "IMF Sri Lanka",         articleCount: 142, category: "Business",      rankChange: 0,  sparkline: [4,6,5,7,8,9,10,8,9,10] },
+  { id: 2,  rank: 2,  topic: "Asia Cup 2026",          articleCount: 98,  category: "Sports",        rankChange: 2,  sparkline: [3,4,5,6,7,8,9,8,9,9]  },
+  { id: 3,  rank: 3,  topic: "AI Regulation",          articleCount: 76,  category: "Tech",          rankChange: -1, sparkline: [6,7,8,7,6,7,8,7,7,8]  },
+  { id: 4,  rank: 4,  topic: "Monsoon Floods",         articleCount: 54,  category: "Climate",       rankChange: 0,  sparkline: [2,3,4,5,4,5,6,5,5,6]  },
+  { id: 5,  rank: 5,  topic: "Parliament Session",     articleCount: 41,  category: "Politics",      rankChange: -2, sparkline: [5,5,4,4,5,4,4,5,4,4]  },
+  { id: 6,  rank: 6,  topic: "GPT-5 Launch",           articleCount: 38,  category: "Tech",          rankChange: 3,  sparkline: [1,2,3,4,5,6,7,8,9,10] },
+  { id: 7,  rank: 7,  topic: "Colombo Port City",      articleCount: 35,  category: "Business",      rankChange: 1,  sparkline: [4,4,5,5,4,5,6,5,6,6]  },
+  { id: 8,  rank: 8,  topic: "Solar Energy Policy",    articleCount: 29,  category: "Climate",       rankChange: 0,  sparkline: [3,3,4,4,5,4,5,5,5,5]  },
+  { id: 9,  rank: 9,  topic: "Women's Football AFC",   articleCount: 25,  category: "Sports",        rankChange: -1, sparkline: [6,5,5,4,4,5,4,4,4,5]  },
+  { id: 10, rank: 10, topic: "Netflix South Asia Deal",articleCount: 22,  category: "Entertainment", rankChange: 4,  sparkline: [1,2,3,3,4,5,5,6,7,7]  },
 ];
 
 // ─── Style Maps ────────────────────────────────────────────────────────────────
@@ -482,3 +497,39 @@ export const sentimentStyles: Record<Sentiment, { label: string; classes: string
   Negative: { label: "Negative", classes: "bg-red-500/15 text-red-400 border-red-500/30" },
   Neutral: { label: "Neutral", classes: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
 };
+
+export function getArticleDetail(id: string | number): ArticleDetail {
+  const baseArticle = newsArticles.find(a => String(a.id) === String(id)) || (String(heroArticle.id) === String(id) ? heroArticle : null);
+  if (!baseArticle) return articleDetail;
+  
+  if (baseArticle.id === 2) {
+    return articleDetail;
+  }
+  
+  return {
+    ...articleDetail,
+    id: baseArticle.id,
+    title: baseArticle.title,
+    summary: baseArticle.summary,
+    category: baseArticle.category,
+    source: baseArticle.source,
+    timeAgo: baseArticle.timeAgo,
+    imageId: baseArticle.imageId,
+    sentiment: baseArticle.sentiment,
+    isBookmarked: baseArticle.isBookmarked,
+    readTime: baseArticle.readTime ?? 5,
+    views: baseArticle.views ?? 1250,
+    shares: baseArticle.shares ?? 85,
+    aiSummaryPoints: [
+      `This article covers key updates regarding "${baseArticle.title}" from source ${baseArticle.source}.`,
+      `Key highlights focus on the impact in the ${baseArticle.category} category and related regional developments.`,
+      `Experts and local authorities are monitoring the situation closely as it unfolds.`,
+    ],
+    bodyParagraphs: [
+      `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`,
+      `Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula. Donec lobortis risus a elit. Etiam tempor. Ut ullamcorper, ligula eu tempor congue, eros est euismod turpis, id tincidunt sapien risus a quam. Maecenas fermentum consequat mi. Donec fermentum. Pellentesque malesuada nulla a mi. Duis sapien sem, aliquet nec, commodo eget, sodales quis, libero.`,
+      `Morbi iaculis congue auctor. In hendrerit elit eget ante sodales imperdiet. Proin iaculis lacus ac ante dictum, et pulvinar nisl pulvinar. Ut finibus nisl lorem, imperdiet consequat justo egestas sed. Phasellus feugiat sapien vitae lorem elementum hendrerit. Phasellus tristique tellus a egestas pellentesque. Ut imperdiet mi non nisl tristique, quis elementum dui interdum.`,
+    ],
+  };
+}
+

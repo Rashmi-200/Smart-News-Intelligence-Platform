@@ -1,6 +1,8 @@
 "use client";
 
-import { Zap, MessageCircle, Code2, Briefcase, Play, Mail } from "lucide-react";
+import { useState } from "react";
+import { Zap, MessageCircle, Code2, Briefcase, Play, Mail, Sparkles } from "lucide-react";
+import NewsletterModal from "@/components/NewsletterModal";
 
 const footerLinks = {
   Platform: ["About Us", "How It Works", "AI Features", "Pricing"],
@@ -18,8 +20,12 @@ const socials = [
 ];
 
 export default function Footer() {
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
+
   return (
-    <footer className="mt-20 border-t border-white/[0.07] bg-[#060c18]">
+    <>
+      <NewsletterModal isOpen={newsletterOpen} onClose={() => setNewsletterOpen(false)} />
+      <footer className="mt-20 border-t border-white/[0.07] bg-[#060c18]">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-14">
         {/* Top section */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
@@ -38,17 +44,28 @@ export default function Footer() {
               multilingual, and always ahead of the curve.
             </p>
             {/* Social icons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-6">
               {socials.map(({ icon: Icon, label }) => (
                 <button
                   key={label}
                   aria-label={label}
+                  onClick={() => label === "Newsletter" && setNewsletterOpen(true)}
                   className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-red-500/20 border border-white/[0.08] hover:border-red-500/30 flex items-center justify-center text-slate-400 hover:text-red-400 transition-all duration-200"
                 >
                   <Icon size={15} />
                 </button>
               ))}
             </div>
+
+            {/* Newsletter CTA */}
+            <button
+              onClick={() => setNewsletterOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-500/15 to-orange-500/10 border border-red-500/20 text-red-300 hover:text-white hover:border-red-500/40 text-sm font-semibold transition-all duration-200 group"
+              id="footer-subscribe-btn"
+            >
+              <Sparkles size={14} className="group-hover:rotate-12 transition-transform" />
+              Subscribe to Newsletter
+            </button>
           </div>
 
           {/* Links */}
@@ -84,6 +101,7 @@ export default function Footer() {
           </div>
         </div>
       </div>
-    </footer>
+      </footer>
+    </>
   );
 }

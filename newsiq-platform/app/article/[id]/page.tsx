@@ -1,5 +1,5 @@
 import ArticlePageClient from "@/components/ArticlePageClient";
-import { newsArticles, articleDetail } from "@/lib/mockData";
+import { newsArticles, articleDetail, getArticleDetail } from "@/lib/mockData";
 
 export function generateStaticParams() {
   const ids = [
@@ -10,12 +10,13 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
+  const article = getArticleDetail(params.id);
   return {
-    title: `${articleDetail.title} | NewsIQ`,
-    description: articleDetail.summary,
+    title: `${article.title} | NewsIQ`,
+    description: article.summary,
     openGraph: {
-      title: articleDetail.title,
-      description: articleDetail.summary,
+      title: article.title,
+      description: article.summary,
       type: "article",
     },
   };

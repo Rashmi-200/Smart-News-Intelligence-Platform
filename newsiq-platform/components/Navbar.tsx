@@ -12,10 +12,15 @@ import {
   Moon,
   ChevronDown,
   Zap,
+  Bookmark,
+  TrendingUp,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/lib/mockData";
 import { toast } from "sonner";
+import SearchModal from "@/components/SearchModal";
+import { useBookmarks } from "@/hooks/useBookmarks";
 
 const categories: Category[] = [
   "All",
@@ -24,6 +29,7 @@ const categories: Category[] = [
   "Sports",
   "Tech",
   "Climate",
+  "Entertainment",
 ];
 
 const languages = [
@@ -38,19 +44,17 @@ interface NavbarProps {
 }
 
 export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps) {
+  const router = useRouter();
   const [isDark, setIsDark] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [activeLang, setActiveLang] = useState("EN");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const notificationCount = 4;
+  const { count: bookmarkCount } = useBookmarks();
 
   const handleLogin = () => toast.info("Login feature coming soon!");
   const handleSignUp = () => toast.success("Sign up feature coming soon!");
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) toast.info(`Searching for: "${searchQuery}"`);
-  };
 
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -70,7 +74,7 @@ export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps
 
             {/* Search bar — desktop */}
             <form
-              onSubmit={handleSearch}
+              onSubmit={(e) => { e.preventDefault(); setSearchModalOpen(true); }}
               className="hidden md:flex flex-1 max-w-md mx-4 relative"
             >
               <div className="w-full relative">
@@ -80,10 +84,10 @@ export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps
                 />
                 <input
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search news, topics, sources..."
-                  className="w-full bg-white/[0.06] border border-white/[0.08] hover:border-white/[0.14] focus:border-red-500/50 focus:bg-white/[0.08] text-sm text-slate-200 placeholder:text-slate-500 rounded-full pl-9 pr-4 py-2 outline-none transition-all duration-200"
+                  readOnly
+                  onClick={() => setSearchModalOpen(true)}
+                  className="w-full bg-white/[0.06] border border-white/[0.08] hover:border-white/[0.14] focus:border-red-500/50 focus:bg-white/[0.08] text-sm text-slate-200 placeholder:text-slate-500 rounded-full pl-9 pr-4 py-2 cursor-pointer outline-none transition-all duration-200"
                 />
               </div>
             </form>
@@ -139,6 +143,31 @@ export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Trending link */}
+              <button
+                onClick={() => router.push("/trending")}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-red-500/10 border border-white/[0.08] hover:border-red-500/20 text-slate-400 hover:text-red-400 text-xs font-semibold transition-all duration-200"
+                id="trending-nav-btn"
+              >
+                <TrendingUp size={13} />
+                Trending
+              </button>
+
+              {/* Bookmarks */}
+              <button
+                onClick={() => router.push("/bookmarks")}
+                className="relative p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-slate-400 hover:text-white transition-all duration-200"
+                aria-label="My bookmarks"
+                id="bookmarks-nav-btn"
+              >
+                <Bookmark size={15} />
+                {bookmarkCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-black text-white flex items-center justify-center leading-none shadow-lg shadow-red-500/50">
+                    {bookmarkCount > 9 ? "9+" : bookmarkCount}
+                  </span>
+                )}
+              </button>
 
               {/* Dark/light toggle */}
               <button
@@ -232,14 +261,14 @@ export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps
           >
             <div className="px-4 py-4 space-y-4">
               {/* Mobile search */}
-              <form onSubmit={handleSearch} className="relative">
+              <form onSubmit={(e) => { e.preventDefault(); setSearchModalOpen(true); }} className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search news..."
-                  className="w-full bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 placeholder:text-slate-500 rounded-full pl-9 pr-4 py-2 outline-none focus:border-red-500/50"
+                  readOnly
+                  onClick={() => { setSearchModalOpen(true); setMobileOpen(false); }}
+                  className="w-full bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 placeholder:text-slate-500 rounded-full pl-9 pr-4 py-2 cursor-pointer outline-none focus:border-red-500/50"
                 />
               </form>
 
@@ -283,6 +312,7 @@ export default function Navbar({ activeCategory, onCategoryChange }: NavbarProps
           </motion.div>
         )}
       </AnimatePresence>
+      <SearchModal isOpen={searchModalOpen} onClose={() => setSearchModalOpen(false)} />
     </header>
   );
 }

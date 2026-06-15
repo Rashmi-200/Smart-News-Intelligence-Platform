@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Bookmark, Share2, Clock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ interface HeroCardProps {
 }
 
 export default function HeroCard({ article, onBookmark }: HeroCardProps) {
+  const router = useRouter();
   const catColor = categoryColors[article.category];
   const sentiment = sentimentStyles[article.sentiment];
 
@@ -29,6 +31,7 @@ export default function HeroCard({ article, onBookmark }: HeroCardProps) {
       className="relative w-full rounded-2xl overflow-hidden group cursor-pointer"
       style={{ minHeight: "420px" }}
       aria-label="Featured article"
+      onClick={() => router.push(`/article/${article.id}`)}
     >
       {/* Background image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -87,7 +90,7 @@ export default function HeroCard({ article, onBookmark }: HeroCardProps) {
           {/* Actions */}
           <div className="flex items-center gap-2">
             <button
-              onClick={handleShare}
+              onClick={(e) => { e.stopPropagation(); handleShare(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-sm font-medium transition-all duration-200 backdrop-blur-sm border border-white/10"
               id="hero-share-btn"
             >
@@ -95,7 +98,7 @@ export default function HeroCard({ article, onBookmark }: HeroCardProps) {
               Share
             </button>
             <button
-              onClick={() => onBookmark(article.id)}
+              onClick={(e) => { e.stopPropagation(); onBookmark(article.id); }}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm border",
                 article.isBookmarked
