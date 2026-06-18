@@ -1,0 +1,16 @@
+{
+  "name": "NewsIQ Smart News Platform",
+  "short_name": "NewsIQ",
+  "description": "AI-powered news aggregation and intelligence platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060c18",
+  "theme_color": "#060c18",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
