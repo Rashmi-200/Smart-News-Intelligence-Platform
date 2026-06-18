@@ -1,6 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { AuthProvider } from "@/context/AuthContext";
+import CookieBanner from "@/components/CookieBanner";
+import ScrollToTop from "@/components/ScrollToTop";
 
 export const metadata: Metadata = {
   title: "NewsIQ — Smart News Intelligence Platform",
@@ -8,11 +11,24 @@ export const metadata: Metadata = {
     "AI-powered news aggregation and analysis platform delivering personalised, multilingual news with sentiment analysis and real-time breaking alerts.",
   keywords: ["news", "AI", "Sri Lanka", "intelligence", "breaking news", "analysis"],
   authors: [{ name: "NewsIQ Team" }],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "NewsIQ",
+  },
   openGraph: {
     title: "NewsIQ — Smart News Intelligence Platform",
     description: "AI-powered news aggregation with sentiment analysis and real-time alerts.",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#060c18",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
@@ -30,19 +46,23 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>
-        {children}
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: "#1e293b",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#f1f5f9",
-            },
-          }}
-        />
+      <body className="antialiased selection:bg-red-500/30 selection:text-white">
+        <AuthProvider>
+          {children}
+          <CookieBanner />
+          <ScrollToTop />
+          <Toaster
+            theme="dark"
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#0b1222",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#f1f5f9",
+              },
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   );
