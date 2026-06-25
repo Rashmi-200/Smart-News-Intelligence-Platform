@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id              Int     @id @default(autoincrement())
+  title           String?
+  url             String  @unique
+  summary         String?
+  category        String?
+  source          String?
+  published       String?
+  scraped_at      String?
+  sentiment_score Float?
+  view_count      Int @default(0)
+
+  bookmarks        Bookmark[]
+  readingHistories ReadingHistory[]
+  comments         Comment[]
+  companyMentions  CompanyMention[]
+
+  @@map("articles")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookmarks        Bookmark[]
+  readingHistories ReadingHistory[]
+  keywordAlerts    KeywordAlert[]
+  notifications    Notification[]
+  comments         Comment[]
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  articleId Int
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  article Article @relation(fields: [articleId], references: [id])
+
+  @@unique([userId, articleId])
+}
+
+model ReadingHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  articleId Int
+  readAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  article Article @relation(fields: [articleId], references: [id])
+
+  @@unique([userId, articleId])
+}
+
+model KeywordAlert {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  keyword   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  articleId Int
+  content   String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  article Article @relation(fields: [articleId], references: [id])
+}
+
+model CompanyMention {
+  id          Int      @id @default(autoincrement())
+  companyName String
+  articleId   Int
+  mentionedAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model DisasterAlert {
+  id        Int      @id @default(autoincrement())
+  region    String
+  type      String
+  severity  String   // e.g. "Low", "Medium", "High", "Critical"
+  message   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
