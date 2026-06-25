@@ -28,6 +28,8 @@ export function useFilters() {
 
   const q = searchParams.get("q") || "";
   const date = searchParams.get("date") || "all";
+  const startDate = searchParams.get("startDate") || "";
+  const endDate = searchParams.get("endDate") || "";
   const sort = searchParams.get("sort") || "relevance";
   
   const sources = useMemo(() => {
@@ -54,6 +56,15 @@ export function useFilters() {
   const setFilter = useCallback(
     (key: string, value: string | string[] | null) => {
       const qs = createQueryString({ [key]: value });
+      router.push(`${pathname}?${qs}`);
+    },
+    [createQueryString, pathname, router]
+  );
+
+  // Set multiple filters at once
+  const setFilters = useCallback(
+    (params: Record<string, string | string[] | null>) => {
+      const qs = createQueryString(params);
       router.push(`${pathname}?${qs}`);
     },
     [createQueryString, pathname, router]
@@ -88,25 +99,35 @@ export function useFilters() {
   // Calculate active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (date !== "all") count += 1;
+    if (date !== "all") {
+      count += 1;
+      // If custom date range has specific dates, count them or count them as part of date range
+      if (date === "custom" && (startDate || endDate)) {
+        // counted as 1 for the custom filter
+      }
+    }
     if (sources.length > 0) count += sources.length;
     if (categories.length > 0) count += categories.length;
     if (sentiments.length > 0) count += sentiments.length;
     if (languages.length > 0) count += languages.length;
     return count;
-  }, [date, sources, categories, sentiments, languages]);
+  }, [date, sources, categories, sentiments, languages, startDate, endDate]);
 
   return {
     q,
     date,
+    startDate,
+    endDate,
     sort,
     sources,
     categories,
     sentiments,
     languages,
     setFilter,
+    setFilters,
     toggleArrayFilter,
     clearAllFilters,
     activeFiltersCount,
   };
 }
+
