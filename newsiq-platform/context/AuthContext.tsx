@@ -3,10 +3,15 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
+import * as authService from "@/lib/services/authService";
+import type { AuthUser } from "@/lib/services/authService";
 
+// ── UserProfile: backend fields + optional frontend-only enrichment ───────────
 export interface UserProfile {
+  id: number;
   name: string;
   email: string;
+  // Frontend-only enrichment stored in localStorage
   bio: string;
   location: string;
   interests: string[];
@@ -24,7 +29,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, interests: string[]) => Promise<boolean>;
+  register: (name: string, email: string, password: string, interests?: string[]) => Promise<boolean>;
   logout: () => void;
   updateProfile: (profile: Partial<UserProfile>) => Promise<boolean>;
   deleteAccount: () => Promise<boolean>;
@@ -32,20 +37,49 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_MOCK_USER: UserProfile = {
-  name: "Vibhu Kumar",
-  email: "vibhu@newsiq.lk",
-  bio: "News enthusiast and technology analyst. Keeping track of macroeconomic changes in South Asia.",
-  location: "Colombo, Sri Lanka",
-  interests: ["Tech", "Business", "Climate", "Politics"],
-  notificationPrefs: {
-    breakingNews: true,
-    dailyDigest: false,
-    keywordAlerts: true,
-    financialAlerts: true,
-  },
-  memberSince: "April 2026",
-};
+const LOCAL_PROFILE_KEY = "newsiq_local_profile";
+
+// ── Default local enrichment for new users ────────────────────────────────────
+function defaultEnrichment(user: AuthUser): UserProfile {
+  const stored =
+    typeof window !== "undefined"
+      ? localStorage.getItem(`${LOCAL_PROFILE_KEY}_${user.id}`)
+      : null;
+  if (stored) {
+    try {
+      return { ...JSON.parse(stored), id: user.id, name: user.name, email: user.email };
+    } catch {
+      // fall through to default
+    }
+  }
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    bio: "Add your bio here...",
+    location: "Colombo, Sri Lanka",
+    interests: ["Tech", "Business", "Climate", "Politics"],
+    notificationPrefs: {
+      breakingNews: true,
+      dailyDigest: false,
+      keywordAlerts: true,
+      financialAlerts: true,
+    },
+    memberSince: new Date().toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    }),
+  };
+}
+
+function saveLocalEnrichment(profile: UserProfile) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(
+      `${LOCAL_PROFILE_KEY}_${profile.id}`,
+      JSON.stringify(profile)
+    );
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -53,118 +87,118 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Load user from localStorage on mount
+  // ── On mount: if token exists, hydrate user from backend ──────────────────
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedUser = localStorage.getItem("newsiq_user");
-      const loggedIn = localStorage.getItem("newsiq_logged_in");
-
-      if (loggedIn === "true") {
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        } else {
-          setUser(DEFAULT_MOCK_USER);
-          localStorage.setItem("newsiq_user", JSON.stringify(DEFAULT_MOCK_USER));
-        }
-      }
+    const token = authService.getToken();
+    if (!token) {
       setIsLoading(false);
+      return;
     }
+
+    authService
+      .getMe()
+      .then((backendUser) => {
+        setUser(defaultEnrichment(backendUser));
+      })
+      .catch(() => {
+        // Token is invalid or expired — clear it
+        authService.clearToken();
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
+  // ── LOGIN ─────────────────────────────────────────────────────────────────
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // Simple mock check
-    if (email && password.length >= 6) {
-      // If there's a registered user in localStorage with this email, use it. Otherwise create a mock one.
-      const stored = localStorage.getItem(`newsiq_registered_${email}`);
-      let loggedUser: UserProfile;
-
-      if (stored) {
-        loggedUser = JSON.parse(stored);
-      } else {
-        loggedUser = {
-          ...DEFAULT_MOCK_USER,
-          email,
-          name: email.split("@")[0].charAt(0).toUpperCase() + email.split("@")[0].slice(1),
-        };
-      }
-
-      setUser(loggedUser);
-      localStorage.setItem("newsiq_user", JSON.stringify(loggedUser));
-      localStorage.setItem("newsiq_logged_in", "true");
-      setIsLoading(false);
+    try {
+      const { token } = await authService.login(email, password);
+      authService.setToken(token);
+      const backendUser = await authService.getMe();
+      const profile = defaultEnrichment(backendUser);
+      setUser(profile);
       toast.success("Successfully logged in!");
       return true;
-    } else {
-      setIsLoading(false);
-      toast.error("Invalid credentials. Password must be at least 6 characters.");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ??
+        err?.response?.data?.errors?.[0]?.message ??
+        "Invalid credentials. Please try again.";
+      toast.error(msg);
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const register = async (name: string, email: string, interests: string[]): Promise<boolean> => {
+  // ── REGISTER ──────────────────────────────────────────────────────────────
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    interests: string[] = []
+  ): Promise<boolean> => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const newUser: UserProfile = {
-      name,
-      email,
-      bio: "Add your bio here...",
-      location: "Colombo, Sri Lanka",
-      interests,
-      notificationPrefs: {
-        breakingNews: true,
-        dailyDigest: true,
-        keywordAlerts: false,
-        financialAlerts: false,
-      },
-      memberSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    };
-
-    // Store registrations in a mock database (localStorage namespace)
-    localStorage.setItem(`newsiq_registered_${email}`, JSON.stringify(newUser));
-    setUser(newUser);
-    localStorage.setItem("newsiq_user", JSON.stringify(newUser));
-    localStorage.setItem("newsiq_logged_in", "true");
-    setIsLoading(false);
-    toast.success("Account created successfully!");
-    return true;
+    try {
+      const { token } = await authService.register(name, email, password);
+      authService.setToken(token);
+      const backendUser = await authService.getMe();
+      const profile: UserProfile = {
+        ...defaultEnrichment(backendUser),
+        interests,
+      };
+      setUser(profile);
+      saveLocalEnrichment(profile);
+      toast.success("Account created successfully!");
+      return true;
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ??
+        err?.response?.data?.errors?.[0]?.message ??
+        "Registration failed. Please try again.";
+      toast.error(msg);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // ── LOGOUT ────────────────────────────────────────────────────────────────
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("newsiq_user");
-    localStorage.setItem("newsiq_logged_in", "false");
+    authService.clearToken();
     toast.info("Logged out successfully.");
     router.push("/auth/login");
   };
 
-  const updateProfile = async (profileData: Partial<UserProfile>): Promise<boolean> => {
+  // ── UPDATE PROFILE (local enrichment only until backend endpoint exists) ──
+  const updateProfile = async (
+    profileData: Partial<UserProfile>
+  ): Promise<boolean> => {
     if (!user) return false;
-    
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    
+    console.warn(
+      "[AuthContext] TODO: PATCH /auth/me backend endpoint not yet implemented. Saving locally."
+    );
     const updated = { ...user, ...profileData };
     setUser(updated);
-    localStorage.setItem("newsiq_user", JSON.stringify(updated));
-    // Also update registration mock database
-    localStorage.setItem(`newsiq_registered_${user.email}`, JSON.stringify(updated));
+    saveLocalEnrichment(updated);
     toast.success("Profile updated successfully!");
     return true;
   };
 
+  // ── DELETE ACCOUNT (stub until backend endpoint exists) ───────────────────
   const deleteAccount = async (): Promise<boolean> => {
     if (!user) return false;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    localStorage.removeItem(`newsiq_registered_${user.email}`);
+    console.warn(
+      "[AuthContext] TODO: DELETE /auth/me backend endpoint not yet implemented."
+    );
+    // Clear token and local data
+    authService.clearToken();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`${LOCAL_PROFILE_KEY}_${user.id}`);
+    }
     setUser(null);
-    localStorage.removeItem("newsiq_user");
-    localStorage.setItem("newsiq_logged_in", "false");
     toast.success("Account deleted.");
     router.push("/auth/register");
     return true;
@@ -198,7 +232,7 @@ export function useAuth() {
   return context;
 }
 
-// Protected Route wrapper component
+// ── Protected Route wrapper ───────────────────────────────────────────────────
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();

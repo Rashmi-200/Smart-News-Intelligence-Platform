@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import CookieBanner from "@/components/CookieBanner";
 import ScrollToTop from "@/components/ScrollToTop";
+import QueryProvider from "@/providers/QueryProvider";
 
 export const metadata: Metadata = {
   title: "NewsIQ — Smart News Intelligence Platform",
@@ -47,22 +48,24 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased selection:bg-red-500/30 selection:text-white">
-        <AuthProvider>
-          {children}
-          <CookieBanner />
-          <ScrollToTop />
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: "#0b1222",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "#f1f5f9",
-              },
-            }}
-          />
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+            <CookieBanner />
+            <ScrollToTop />
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "#0b1222",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#f1f5f9",
+                },
+              }}
+            />
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

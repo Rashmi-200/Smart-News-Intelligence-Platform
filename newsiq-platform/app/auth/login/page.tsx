@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Zap, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const router = useRouter();

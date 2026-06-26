@@ -1,22 +1,15 @@
 import ArticlePageClient from "@/components/ArticlePageClient";
-import { newsArticles, articleDetail, getArticleDetail } from "@/lib/mockData";
 
-export function generateStaticParams() {
-  const ids = [
-    articleDetail.id,
-    ...newsArticles.map((a) => a.id),
-  ];
-  return ids.map((id) => ({ id: String(id) }));
-}
+// Dynamic rendering — article IDs come from the database, not pre-generated at build time
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
-  const article = getArticleDetail(params.id);
   return {
-    title: `${article.title} | NewsIQ`,
-    description: article.summary,
+    title: `Article #${params.id} | NewsIQ`,
+    description: "Read the full article on NewsIQ — Smart News Intelligence Platform.",
     openGraph: {
-      title: article.title,
-      description: article.summary,
+      title: `NewsIQ Article`,
+      description: "AI-powered news analysis.",
       type: "article",
     },
   };

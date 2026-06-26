@@ -219,7 +219,7 @@ export default function ClimatePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {climateArticles.map((article, i) => (
-            <NewsCard key={article.id} article={article} index={i} />
+            <NewsCard key={article.id} article={article as any} index={i} onBookmark={() => {}} />
           ))}
         </div>
       </main>

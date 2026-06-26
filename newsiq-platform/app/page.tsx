@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { RefreshCw, Layers, Filter, Sparkles } from "lucide-react";
 import Navbar from "@/components/Navbar";
@@ -16,109 +17,148 @@ import {
   SkeletonSidebar,
 } from "@/components/SkeletonLoader";
 import {
-  heroArticle,
-  newsArticles,
-  trendingTopics,
   type Category,
-  type NewsArticle,
+  type TrendingTopic,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import NewsletterModal from "@/components/NewsletterModal";
+import {
+  getArticles,
+  getTrendingArticles,
+  type MappedArticle,
+} from "@/lib/services/articleService";
 
-// Extra articles for "load more"
-const extraArticles: NewsArticle[] = [
-  {
-    id: 10,
-    title: "Colombo Named Top 10 Emerging Tech Hub in Global Startup Index 2026",
-    summary:
-      "A joint report by Startup Genome and the World Bank ranks Colombo 8th globally among emerging tech ecosystems, citing rapid growth in fintech and health-tech sectors.",
-    category: "Tech",
-    source: "Wired",
-    timeAgo: "8h ago",
-    imageId: 1076,
-    sentiment: "Positive",
-    isBookmarked: false,
-  },
-  {
-    id: 11,
-    title: "National Energy Policy Mandates 70% Renewables by 2030, Solar Subsidy Doubled",
-    summary:
-      "The Ministry of Power announced an aggressive new framework including a doubling of rooftop solar subsidies and an accelerated offshore wind procurement schedule.",
-    category: "Climate",
-    source: "Daily News",
-    timeAgo: "9h ago",
-    imageId: 1021,
-    sentiment: "Positive",
-    isBookmarked: false,
-  },
-  {
-    id: 12,
-    title: "Sri Lanka Women's Football Team Qualifies for AFC Asian Cup for First Time",
-    summary:
-      "A 2-1 victory over Vietnam in the qualifying playoff sealed an historic berth, sending shockwaves through South Asian football with their dynamic counter-attacking display.",
-    category: "Sports",
-    source: "AFC Media",
-    timeAgo: "10h ago",
-    imageId: 1062,
-    sentiment: "Positive",
-    isBookmarked: false,
-  },
-];
+// ── Map backend trending articles to the TrendingTopic shape ─────────────────
+function toTrendingTopics(articles: MappedArticle[]): TrendingTopic[] {
+  return articles.map((a, i) => ({
+    id: a.id,
+    rank: i + 1,
+    topic: a.title.split(" ").slice(0, 4).join(" "),
+    articleCount: a.views,
+    category: a.category,
+    rankChange: 0,
+    sparkline: [4, 5, 6, 5, 7, 8, 7, 8, 9, 10],
+  }));
+}
+
+// ── Map MappedArticle to the shape NewsCard / HeroCard expect ─────────────────
+function toNewsArticle(a: MappedArticle, isBookmarkedFn: (id: number) => boolean) {
+  return {
+    ...a,
+    isBookmarked: isBookmarkedFn(a.id),
+    isHero: false,
+  };
+}
 
 export default function HomePage() {
-  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category>("All");
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [hero] = useState(heroArticle);
-  const [showLoadMore, setShowLoadMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [allArticles, setAllArticles] = useState<MappedArticle[]>([]);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
   const { isBookmarked, toggleBookmark } = useBookmarks();
+  const queryClient = useQueryClient();
 
-  // Simulate initial data load
+  // ── Fetch articles (category-filtered) ────────────────────────────────────
+  const {
+    data: articlesData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["articles", activeCategory, 1],
+    queryFn: () =>
+      getArticles({
+        category: activeCategory === "All" ? undefined : activeCategory,
+        limit: 12,
+        page: 1,
+      }),
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setArticles(newsArticles);
-      setIsLoading(false);
-    }, 1400);
-    return () => clearTimeout(timer);
-  }, []);
+    if (articlesData?.data) {
+      setAllArticles(articlesData.data);
+      setPage(1);
+    }
+  }, [articlesData, activeCategory]);
 
-  // Filter articles by category
-  const filteredArticles =
-    activeCategory === "All"
-      ? articles
-      : articles.filter((a) => a.category === activeCategory);
+  // Sync allArticles with first query result (handles initial load)
+  const baseArticles = articlesData?.data ?? [];
+  const displayArticles =
+    allArticles.length > 0 && page > 1 ? allArticles : baseArticles;
 
-  // Bookmark toggle — now persisted via useBookmarks hook
+  // Hero = first article, grid = rest
+  const hero = displayArticles[0] ?? null;
+  const gridArticles = displayArticles.slice(1);
+
+  const hasMore = articlesData
+    ? page < articlesData.totalPages
+    : false;
+
+  // ── Fetch trending for sidebar ─────────────────────────────────────────────
+  const { data: trendingData, isLoading: isTrendingLoading } = useQuery({
+    queryKey: ["trending"],
+    queryFn: () => getTrendingArticles({ limit: 5 }),
+    staleTime: 5 * 60_000,
+  });
+
+  const trendingTopics = trendingData ? toTrendingTopics(trendingData.data) : [];
+
+  // ── Bookmark toggle ────────────────────────────────────────────────────────
   const handleBookmark = (id: number) => {
-    const article = id === hero.id ? hero : articles.find((a) => a.id === id);
+    const article =
+      id === hero?.id ? hero : displayArticles.find((a) => a.id === id);
     if (!article) return;
-    toggleBookmark(article);
+    toggleBookmark(article as any);
     const nowBookmarked = !isBookmarked(id);
     toast.success(nowBookmarked ? "Article saved!" : "Bookmark removed");
   };
 
-  // Load more
-  const handleLoadMore = () => {
-    setIsLoadingMore(true);
-    setTimeout(() => {
-      setArticles((prev) => [
-        ...prev,
-        ...extraArticles.filter((e) => !prev.find((p) => p.id === e.id)),
-      ]);
-      setIsLoadingMore(false);
-      setShowLoadMore(false);
-      toast.success("Loaded 3 more articles");
-    }, 1000);
+  // ── Load more (page-based) ─────────────────────────────────────────────────
+  const handleLoadMore = useCallback(async () => {
+    const nextPage = page + 1;
+    try {
+      const more = await getArticles({
+        category: activeCategory === "All" ? undefined : activeCategory,
+        limit: 12,
+        page: nextPage,
+      });
+      setAllArticles((prev) => {
+        const ids = new Set(prev.map((a) => a.id));
+        const fresh = more.data.filter((a) => !ids.has(a.id));
+        return [...prev, ...fresh];
+      });
+      setPage(nextPage);
+      toast.success(`Loaded ${more.data.length} more articles`);
+    } catch {
+      toast.error("Failed to load more articles");
+    }
+  }, [page, activeCategory]);
+
+  // ── Refresh ────────────────────────────────────────────────────────────────
+  const handleRefresh = () => {
+    setAllArticles([]);
+    setPage(1);
+    queryClient.invalidateQueries({ queryKey: ["articles"] });
+    refetch();
+    toast.success("Feed refreshed!");
   };
 
-  // Trending topic click
+  // ── Category change ────────────────────────────────────────────────────────
+  const handleCategoryChange = (cat: Category) => {
+    setActiveCategory(cat);
+    setAllArticles([]);
+    setPage(1);
+  };
+
   const handleTopicClick = (topic: string) => {
     toast.info(`Filtering by topic: ${topic}`);
   };
+
+  const showLoadMore = hasMore && activeCategory === "All";
+  const isLoadingMore = isFetching && page > 1;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -126,15 +166,11 @@ export default function HomePage() {
       <LiveFeedBanner
         newArticleCount={5}
         delaySeconds={30}
-        onRefresh={() => {
-          setIsLoading(true);
-          setTimeout(() => setIsLoading(false), 800);
-          toast.success("Feed refreshed with new articles!");
-        }}
+        onRefresh={handleRefresh}
       />
       <Navbar
         activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
+        onCategoryChange={handleCategoryChange as any}
       />
       <NewsTicker />
 
@@ -156,15 +192,11 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                setIsLoading(true);
-                setTimeout(() => setIsLoading(false), 800);
-                toast.info("Feed refreshed");
-              }}
+              onClick={handleRefresh}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-slate-400 hover:text-white text-xs font-medium transition-all duration-200"
               id="refresh-btn"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
               Refresh
             </button>
             <button
@@ -180,11 +212,16 @@ export default function HomePage() {
 
         {/* Hero Section */}
         <div className="mb-6">
-          {isLoading ? <SkeletonHero /> : (
+          {isLoading ? (
+            <SkeletonHero />
+          ) : hero ? (
             (activeCategory === "All" || activeCategory === hero.category) && (
-              <HeroCard article={{ ...hero, isBookmarked: isBookmarked(hero.id) }} onBookmark={handleBookmark} />
+              <HeroCard
+                article={toNewsArticle(hero, isBookmarked) as any}
+                onBookmark={handleBookmark}
+              />
             )
-          )}
+          ) : null}
         </div>
 
         {/* Newsletter CTA strip */}
@@ -227,7 +264,9 @@ export default function HomePage() {
                 <div className="flex items-center gap-1.5">
                   <Layers size={13} className="text-slate-500" />
                   <span className="text-slate-400 text-xs">
-                    <span className="text-white font-semibold">{filteredArticles.length}</span>{" "}
+                    <span className="text-white font-semibold">
+                      {articlesData?.totalCount ?? gridArticles.length}
+                    </span>{" "}
                     articles
                     {activeCategory !== "All" && (
                       <> in <span className="text-red-400 font-medium">{activeCategory}</span></>
@@ -249,7 +288,7 @@ export default function HomePage() {
                   <SkeletonCard key={i} />
                 ))}
               </div>
-            ) : filteredArticles.length === 0 ? (
+            ) : gridArticles.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -258,14 +297,12 @@ export default function HomePage() {
                 <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-4">
                   <Layers size={28} className="text-slate-600" />
                 </div>
-                <h3 className="text-slate-300 font-semibold mb-2">
-                  No articles found
-                </h3>
+                <h3 className="text-slate-300 font-semibold mb-2">No articles found</h3>
                 <p className="text-slate-500 text-sm max-w-xs">
                   No {activeCategory} articles right now. Check back soon or try another category.
                 </p>
                 <button
-                  onClick={() => setActiveCategory("All")}
+                  onClick={() => handleCategoryChange("All")}
                   className="btn-ghost mt-6 text-sm"
                 >
                   View all articles
@@ -274,10 +311,10 @@ export default function HomePage() {
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredArticles.map((article, i) => (
+                  {gridArticles.map((article, i) => (
                     <NewsCard
                       key={article.id}
-                      article={{ ...article, isBookmarked: isBookmarked(article.id) }}
+                      article={toNewsArticle(article, isBookmarked) as any}
                       onBookmark={handleBookmark}
                       index={i}
                     />
@@ -285,7 +322,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Load More */}
-                {showLoadMore && activeCategory === "All" && (
+                {showLoadMore && (
                   <div className="flex justify-center mt-10">
                     <button
                       onClick={handleLoadMore}
@@ -318,7 +355,7 @@ export default function HomePage() {
 
           {/* Trending sidebar — desktop only */}
           <div className="hidden xl:block w-72 flex-shrink-0">
-            {isLoading ? (
+            {isLoading || isTrendingLoading ? (
               <SkeletonSidebar />
             ) : (
               <div className="sticky top-24">

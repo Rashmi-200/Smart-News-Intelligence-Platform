@@ -8,36 +8,60 @@ import {
   Sparkles, ThumbsUp, Send, Copy, MessageCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import ReadingProgress from "@/components/ReadingProgress";
 import Breadcrumb from "@/components/Breadcrumb";
 import Sidebar from "@/components/Sidebar";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import NewsTicker from "@/components/NewsTicker";
-import { newsArticles, categoryColors, sentimentStyles, type Category, getArticleDetail } from "@/lib/mockData";
+import { SkeletonHero, SkeletonCard } from "@/components/SkeletonLoader";
+import { categoryColors, sentimentStyles, type Category } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBookmarks, useReadingHistory } from "@/hooks/useBookmarks";
+import { getArticleById, incrementView } from "@/lib/services/articleService";
 
 export default function ArticlePageClient({ id }: { id: string }) {
   const router = useRouter();
-  const article = getArticleDetail(id);
   const { isBookmarked: checkBookmarked, toggleBookmark } = useBookmarks();
   const { addToHistory } = useReadingHistory();
-  const [isBookmarked, setIsBookmarked] = useState(() => checkBookmarked(article.id));
+
+  // ── Fetch article from real backend ───────────────────────────────────────
+  const {
+    data: article,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["article", id],
+    queryFn: () => getArticleById(id),
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+  });
+
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState(article.comments);
+  const [comments, setComments] = useState<
+    { id: number; username: string; initials: string; avatarColor: string; timeAgo: string; text: string; likes: number }[]
+  >([]);
   const [likedComments, setLikedComments] = useState<Set<number>>(new Set());
 
-  // Track this article in reading history
+  // Sync bookmark state and comments once article loads
   useEffect(() => {
-    addToHistory(article);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [article.id]);
+    if (article) {
+      setIsBookmarked(checkBookmarked(article.id));
+      setComments(article.comments ?? []);
+    }
+  }, [article?.id]);
 
-  const catColor = categoryColors[article.category];
-  const sentiment = sentimentStyles[article.sentiment];
-  const relatedArticles = newsArticles.filter((a) => a.category === article.category && a.id !== article.id).slice(0, 4);
+  // Increment view count + track history on first load
+  useEffect(() => {
+    if (article) {
+      incrementView(id);
+      addToHistory(article as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article?.id]);
 
   const handleShare = (platform: string) => {
     if (platform === "copy") {
@@ -70,14 +94,44 @@ export default function ArticlePageClient({ id }: { id: string }) {
   const toggleLike = (commentId: number) => {
     setLikedComments((prev) => {
       const next = new Set(prev);
-      if (next.has(commentId)) {
-        next.delete(commentId);
-      } else {
-        next.add(commentId);
-      }
+      if (next.has(commentId)) next.delete(commentId);
+      else next.add(commentId);
       return next;
     });
   };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar activeCategory={"Tech" as Category} onCategoryChange={() => {}} />
+        <NewsTicker />
+        <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 py-8">
+          <SkeletonHero />
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // ── Error / not found ──────────────────────────────────────────────────────
+  if (isError || !article) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-slate-400 text-sm">Article not found or failed to load.</p>
+        <button onClick={() => router.back()} className="btn-ghost text-sm">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const catColor = categoryColors[article.category] ?? categoryColors["Tech"];
+  const sentiment = sentimentStyles[article.sentiment] ?? sentimentStyles["Neutral"];
+  const relatedArticles = article.related ?? [];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -93,7 +147,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
 
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 py-8">
 
-        {/* ── Back + Breadcrumb ─────────────────────────────────────────── */}
+        {/* ── Back + Breadcrumb ──────────────────────────────────────────────── */}
         <div className="flex items-center gap-4 mb-6 flex-wrap">
           <button
             onClick={() => router.back()}
@@ -111,7 +165,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
         </div>
 
         <div className="flex gap-8 items-start">
-          {/* ── Main Content ──────────────────────────────────────────────── */}
+          {/* ── Main Content ────────────────────────────────────────────────── */}
           <article className="flex-1 min-w-0">
 
             {/* Hero Image */}
@@ -147,7 +201,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
               </div>
             </motion.div>
 
-            {/* ── Meta row ─────────────────────────────────────────────── */}
+            {/* ── Meta row ──────────────────────────────────────────────────── */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -174,7 +228,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
               </div>
             </motion.div>
 
-            {/* ── Headline ─────────────────────────────────────────────── */}
+            {/* ── Headline ──────────────────────────────────────────────────── */}
             <motion.h1
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -184,35 +238,37 @@ export default function ArticlePageClient({ id }: { id: string }) {
               {article.title}
             </motion.h1>
 
-            {/* ── AI Summary Box ────────────────────────────────────────── */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-xl border border-sky-500/20 bg-sky-500/5 backdrop-blur-sm p-5 mb-8"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                  <Sparkles size={14} className="text-sky-400" />
+            {/* ── AI Summary Box ─────────────────────────────────────────────── */}
+            {article.aiSummaryPoints.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-xl border border-sky-500/20 bg-sky-500/5 backdrop-blur-sm p-5 mb-8"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={14} className="text-sky-400" />
+                  </div>
+                  <div>
+                    <p className="text-sky-300 text-sm font-bold">AI Summary</p>
+                    <p className="text-sky-500/70 text-[10px]">Read in 30 seconds</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sky-300 text-sm font-bold">AI Summary</p>
-                  <p className="text-sky-500/70 text-[10px]">Read in 30 seconds</p>
-                </div>
-              </div>
-              <ul className="space-y-2.5">
-                {article.aiSummaryPoints.map((point, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <p className="text-slate-300 text-sm leading-relaxed">{point}</p>
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
+                <ul className="space-y-2.5">
+                  {article.aiSummaryPoints.map((point, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <p className="text-slate-300 text-sm leading-relaxed">{point}</p>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
 
-            {/* ── Article Body ─────────────────────────────────────────── */}
+            {/* ── Article Body ───────────────────────────────────────────────── */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -222,19 +278,34 @@ export default function ArticlePageClient({ id }: { id: string }) {
               {article.bodyParagraphs.map((para, i) => (
                 <p key={i} className="text-slate-300 leading-8 text-[15px]">{para}</p>
               ))}
+              {/* Link to original source */}
+              {article.url && (
+                <p className="text-slate-500 text-xs mt-4">
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-red-400 hover:underline"
+                  >
+                    Read the full article at {article.source} →
+                  </a>
+                </p>
+              )}
             </motion.div>
 
-            {/* ── Tags ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-2 flex-wrap mb-8">
-              <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Tags:</span>
-              {article.tags.map((tag) => (
-                <button key={tag} className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.08] text-xs transition-all">
-                  #{tag}
-                </button>
-              ))}
-            </div>
+            {/* ── Tags ──────────────────────────────────────────────────────── */}
+            {article.tags.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mb-8">
+                <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Tags:</span>
+                {article.tags.map((tag) => (
+                  <button key={tag} className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.08] text-xs transition-all">
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* ── Sentiment Bar ─────────────────────────────────────────── */}
+            {/* ── Sentiment Bar ──────────────────────────────────────────────── */}
             <div className="glass-card p-5 mb-8">
               <h3 className="text-white font-bold text-sm mb-4">AI Sentiment Analysis</h3>
               <div className="space-y-3">
@@ -259,7 +330,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* ── Social Share ─────────────────────────────────────────── */}
+            {/* ── Social Share ───────────────────────────────────────────────── */}
             <div className="flex items-center gap-3 flex-wrap mb-10">
               <span className="text-slate-400 text-sm font-semibold">Share:</span>
               {[
@@ -288,12 +359,14 @@ export default function ArticlePageClient({ id }: { id: string }) {
                 onClick={() => {
                   const next = !isBookmarked;
                   setIsBookmarked(next);
-                  toggleBookmark(article);
+                  toggleBookmark(article as any);
                   toast.success(next ? "Article saved!" : "Bookmark removed");
                 }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all duration-200",
-                  isBookmarked ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white"
+                  isBookmarked
+                    ? "bg-red-500/10 border-red-500/30 text-red-400"
+                    : "bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white"
                 )}
               >
                 <Bookmark size={13} className={isBookmarked ? "fill-red-400" : ""} />
@@ -301,65 +374,69 @@ export default function ArticlePageClient({ id }: { id: string }) {
               </button>
             </div>
 
-            {/* ── Also Reported By ────────────────────────────────────── */}
-            <section className="mb-10">
-              <h2 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-                <Share2 size={16} className="text-red-400" />
-                Also Reported By
-              </h2>
-              <div className="space-y-3">
-                {article.alsoReportedBy.map((src, i) => (
-                  <motion.a
-                    key={i}
-                    href={src.url}
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * i }}
-                    className="flex items-center gap-4 p-4 glass-card-hover rounded-xl"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                      {src.source[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-200 text-sm font-semibold truncate">{src.source}</p>
-                      <p className="text-slate-400 text-xs truncate mt-0.5">{src.title}</p>
-                    </div>
-                    <span className="text-slate-500 text-xs flex-shrink-0">{src.timeAgo}</span>
-                  </motion.a>
-                ))}
-              </div>
-            </section>
-
-            {/* ── Related Articles ─────────────────────────────────────── */}
-            <section className="mb-10">
-              <h2 className="text-white font-bold text-base mb-4">Related Articles</h2>
-              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
-                {relatedArticles.map((a, i) => (
-                  <Link key={a.id} href={`/article/${a.id}`} className="flex-shrink-0 w-64">
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
+            {/* ── Also Reported By ──────────────────────────────────────────── */}
+            {article.alsoReportedBy.length > 0 && (
+              <section className="mb-10">
+                <h2 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+                  <Share2 size={16} className="text-red-400" />
+                  Also Reported By
+                </h2>
+                <div className="space-y-3">
+                  {article.alsoReportedBy.map((src, i) => (
+                    <motion.a
+                      key={i}
+                      href={src.url}
+                      initial={{ opacity: 0, x: -12 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.08 * i }}
-                      className="glass-card-hover rounded-xl overflow-hidden h-full"
+                      transition={{ delay: 0.1 * i }}
+                      className="flex items-center gap-4 p-4 glass-card-hover rounded-xl"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`https://picsum.photos/seed/${a.imageId}/300/160`}
-                        alt={a.title}
-                        className="w-full h-36 object-cover"
-                      />
-                      <div className="p-3">
-                        <span className={cn("badge text-[10px] mb-2", categoryColors[a.category])}>{a.category}</span>
-                        <p className="text-slate-200 text-xs font-semibold leading-snug line-clamp-2 mb-1">{a.title}</p>
-                        <p className="text-slate-500 text-[10px]">{a.source} · {a.timeAgo}</p>
+                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                        {src.source[0]}
                       </div>
-                    </motion.div>
-                  </Link>
-                ))}
-              </div>
-            </section>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-slate-200 text-sm font-semibold truncate">{src.source}</p>
+                        <p className="text-slate-400 text-xs truncate mt-0.5">{src.title}</p>
+                      </div>
+                      <span className="text-slate-500 text-xs flex-shrink-0">{src.timeAgo}</span>
+                    </motion.a>
+                  ))}
+                </div>
+              </section>
+            )}
 
-            {/* ── Comments ─────────────────────────────────────────────── */}
+            {/* ── Related Articles ──────────────────────────────────────────── */}
+            {relatedArticles.length > 0 && (
+              <section className="mb-10">
+                <h2 className="text-white font-bold text-base mb-4">Related Articles</h2>
+                <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
+                  {relatedArticles.map((a, i) => (
+                    <Link key={a.id} href={`/article/${a.id}`} className="flex-shrink-0 w-64">
+                      <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.08 * i }}
+                        className="glass-card-hover rounded-xl overflow-hidden h-full"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://picsum.photos/seed/${a.imageId}/300/160`}
+                          alt={a.title}
+                          className="w-full h-36 object-cover"
+                        />
+                        <div className="p-3">
+                          <span className={cn("badge text-[10px] mb-2", categoryColors[a.category] ?? "")}>{a.category}</span>
+                          <p className="text-slate-200 text-xs font-semibold leading-snug line-clamp-2 mb-1">{a.title}</p>
+                          <p className="text-slate-500 text-[10px]">{a.source} · {a.timeAgo}</p>
+                        </div>
+                      </motion.div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Comments ──────────────────────────────────────────────────── */}
             <section>
               <h2 className="text-white font-bold text-base mb-5 flex items-center gap-2">
                 <MessageCircle size={16} className="text-red-400" />
@@ -419,7 +496,7 @@ export default function ArticlePageClient({ id }: { id: string }) {
             </section>
           </article>
 
-          {/* ── Sidebar ────────────────────────────────────────────────────── */}
+          {/* ── Sidebar ──────────────────────────────────────────────────────── */}
           <div className="hidden xl:block w-72 flex-shrink-0">
             <div className="sticky top-24">
               <Sidebar />

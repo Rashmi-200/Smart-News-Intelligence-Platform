@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Zap, Mail, Lock, User, Check, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const INTEREST_TOPICS = [
   "Politics", "Business", "Sports", "Tech",
@@ -82,7 +83,7 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!handleValidation()) return;
 
-    const success = await register(name, email, selectedInterests);
+    const success = await register(name, email, password, selectedInterests);
     if (success) {
       router.push("/");
     }
@@ -215,7 +216,7 @@ export default function RegisterPage() {
               </div>
               <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div
-                  className={cn("h-full transition-all duration-300", strength.colorClass || strength.color)}
+                  className={cn("h-full transition-all duration-300", strength.color)}
                   style={{ width: `${strength.percent}%` }}
                 />
               </div>
